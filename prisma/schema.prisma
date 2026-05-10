@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum MemberStatus {
+  PENDING   // Solicitud enviada, esperando aprobación
+  ACTIVE    // Miembro aprobado
+  SUSPENDED // Dado de baja por organizador
+}
+
+enum RoleType {
+  ADMIN           // Admin global de la plataforma
+  ORGANIZER       // Gestiona venue, eventos y aprobaciones
+  DOOR_OPERATOR   // Verifica acceso en la puerta + puede aprobar miembros en vivo
+  TOKEN_CASHIER   // Agrega tokens via efectivo
+  POS_OPERATOR    // Opera el POS para canjear tokens
+}
+
+enum TransactionType {
+  DONATION    // Donativo digital (Stripe)
+  TOPUP       // Carga manual por Cajero de Tokens
+  POS_DEBIT   // Descuento por compra en POS
+  REVERSAL    // Reversión de una transacción anterior
+}
+
+enum EventVisibility {
+  MEMBERS_ONLY // Solo miembros autenticados
+  PUBLIC       // Visible sin autenticación
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  REFUNDED
+}
+
+// ─── Venue ───────────────────────────────────────────────────────────────────
+
+model Venue {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  manifesto   String?  // Manifiesto de esta comunidad/venue
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  events   Event[]
+  members  Member[]
+  roles    MemberRole[]
+}
+
+// ─── Member ──────────────────────────────────────────────────────────────────
+
+model Member {
+  id                   String       @id @default(cuid())
+  phone                String       @unique // Identificador primario — número WhatsApp
+  name                 String
+  city                 String?
+  artPractice          String?      // Qué arte practica
+  howHeard             String?      // Cómo se enteró de la comunidad
+  whyJoin              String?      // Por qué quiere ser parte
+  status               MemberStatus @default(PENDING)
+  manifestoAcceptedAt  DateTime?
+  referrerId           String?      // ID del miembro que lo invitó
+  venueId              String       // Venue al que pertenece en Fase 1
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  referrer     Member?      @relation("Referrals", fields: [referrerId], references: [id])
+  referrals    Member[]     @relation("Referrals")
+  venue        Venue        @relation(fields: [venueId], references: [id])
+  roles        MemberRole[]
+  inviteLinks  InviteLink[]
+  transactions Transaction[]
+  accesses     EventAccess[]
+  otpCodes     OtpCode[]
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+model OtpCode {
+  id        String    @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  member    Member?   @relation(fields: [phone], references: [phone])
+
+  @@index([phone])
+}
+
+// ─── Invite Links ─────────────────────────────────────────────────────────────
+
+model InviteLink {
+  id              String    @id @default(cuid())
+  token           String    @unique @default(cuid())
+  generatedById   String
+  usedByMemberId  String?
+  usedAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  generatedBy Member  @relation(fields: [generatedById], references: [id])
+}
+
+// ─── Roles ────────────────────────────────────────────────────────────────────
+
+model MemberRole {
+  id           String   @id @default(cuid())
+  memberId     String
+  role         RoleType
+  venueId      String?  // null = rol global (ADMIN)
+  assignedById String?
+  assignedAt   DateTime @default(now())
+
+  member  Member @relation(fields: [memberId], references: [id])
+  venue   Venue? @relation(fields: [venueId], references: [id])
+
+  @@unique([memberId, role, venueId])
+}
+
+// ─── Events ───────────────────────────────────────────────────────────────────
+
+model Event {
+  id              String          @id @default(cuid())
+  venueId         String
+  name            String
+  description     String?
+  date            DateTime
+  durationMinutes Int             @default(180)
+  minimumDonation Int             // En centavos MXN
+  visibility      EventVisibility @default(MEMBERS_ONLY)
+  createdById     String
+  cancelledAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  venue    Venue         @relation(fields: [venueId], references: [id])
+  accesses EventAccess[]
+  payments Payment[]
+}
+
+// ─── Event Access ─────────────────────────────────────────────────────────────
+
+model EventAccess {
+  id         String   @id @default(cuid())
+  memberId   String
+  eventId    String
+  paymentId  String?  // null si fue otorgado manualmente por cajero
+  grantedAt  DateTime @default(now())
+
+  member  Member  @relation(fields: [memberId], references: [id])
+  event   Event   @relation(fields: [eventId], references: [id])
+
+  @@unique([memberId, eventId])
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+model Payment {
+  id                String        @id @default(cuid())
+  memberId          String
+  eventId           String?
+  amountCents       Int           // Monto en centavos MXN
+  provider          String        // "stripe" | "mercadopago" | etc.
+  providerPaymentId String?       @unique
+  status            PaymentStatus @default(PENDING)
+  method            String?       // "card" | "oxxo"
+  confirmedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  event Event? @relation(fields: [eventId], references: [id])
+}
+
+// ─── Balance / Transactions ───────────────────────────────────────────────────
+
+model Transaction {
+  id                String          @id @default(cuid())
+  memberId          String
+  type              TransactionType
+  amountCents       Int             // Positivo = crédito, negativo = débito
+  concept           String          // Descripción legible
+  externalReference String?         // ID de pago en Stripe, ID de venta en POS, etc.
+  reversalOfId      String?         // Para reversiones, ID de la transacción original
+  createdAt         DateTime        @default(now())
+
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([memberId, createdAt])
+}
