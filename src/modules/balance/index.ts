@@ -29,6 +29,13 @@ export async function credit(op: BalanceOperation & { type: TransactionType }) {
 }
 
 export async function debit(op: BalanceOperation) {
+  if (op.externalReference) {
+    const existing = await db.transaction.findFirst({
+      where: { externalReference: op.externalReference, memberId: op.memberId },
+    });
+    if (existing) return existing;
+  }
+
   const current = await getBalance(op.memberId);
   if (current < op.amountCents) {
     throw new Error("INSUFFICIENT_BALANCE");
