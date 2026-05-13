@@ -4,45 +4,68 @@
 
 @layer base {
   :root {
-    /* Brand tokens — override per venue/community for white-label */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    /* ── Raw design tokens (use via var(--paper) etc.) ── */
+    --paper:       #f4f1ea;
+    --paper-2:     #ebe7dc;
+    --ink:         #0a0a0a;
+    --ink-2:       #2a2a26;
+    --muted-col:   #8a8478;
+    --line:        #0a0a0a;
+    --brand-accent:#d4ff3a;   /* themable per venue */
+    --accent-ink:  #0a0a0a;
+    --ok:          #2bbf6a;
+    --danger:      #ff3a3a;
+
+    /* ── shadcn/ui compat (HSL, referenced via hsl(var(--name))) ── */
+    --background:              44 30% 93%;
+    --foreground:               0  0%  4%;
+    --card:                    44 30% 93%;
+    --card-foreground:          0  0%  4%;
+    --popover:                 44 30% 93%;
+    --popover-foreground:       0  0%  4%;
+    --primary:                  0  0%  4%;   /* ink */
+    --primary-foreground:      44 30% 93%;   /* paper */
+    --secondary:               44 27% 88%;   /* paper-2 */
+    --secondary-foreground:     0  0%  4%;
+    --muted:                   44 27% 88%;
+    --muted-foreground:        43  7% 50%;   /* #8a8478 */
+    --accent:                  72 100% 61%;  /* #d4ff3a */
+    --accent-foreground:        0  0%  4%;
+    --destructive:              0 100% 60%;  /* #ff3a3a */
+    --destructive-foreground:  44 30% 93%;
+    --border:                   0  0%  4%;   /* 2px ink borders */
+    --input:                    0  0%  4%;
+    --ring:                    72 100% 61%;  /* accent lime */
+    --radius:                  0rem;          /* no border radius — brutalist */
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --paper:       #0e0e0c;
+    --paper-2:     #1a1a17;
+    --ink:         #f4f1ea;
+    --ink-2:       #d8d4c8;
+    --muted-col:   #6e6a5e;
+    --line:        #f4f1ea;
+
+    --background:              60  8%  6%;
+    --foreground:              44 30% 93%;
+    --card:                    60  8%  6%;
+    --card-foreground:         44 30% 93%;
+    --popover:                 60  8%  6%;
+    --popover-foreground:      44 30% 93%;
+    --primary:                 44 30% 93%;
+    --primary-foreground:       0  0%  4%;
+    --secondary:               60  6% 10%;
+    --secondary-foreground:    44 30% 93%;
+    --muted:                   60  6% 10%;
+    --muted-foreground:        43  7% 40%;
+    --accent:                  72 100% 61%;
+    --accent-foreground:        0  0%  4%;
+    --destructive:              0 100% 60%;
+    --destructive-foreground:  44 30% 93%;
+    --border:                  44 30% 93%;
+    --input:                   44 30% 93%;
+    --ring:                    72 100% 61%;
   }
 }
 
@@ -52,5 +75,6 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
   }
 }
