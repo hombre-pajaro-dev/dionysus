@@ -7,32 +7,36 @@ function isAuthorized(req: NextRequest) {
   return key === process.env.POS_API_KEY;
 }
 
-// GET /api/pos/balance?qr=<memberId>
+// GET /api/pos/balance?qr=<userId>
+// POS_VENUE_ID env var identifies which venue this POS instance belongs to.
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const memberId = req.nextUrl.searchParams.get("qr");
-  if (!memberId) {
+  const userId = req.nextUrl.searchParams.get("qr");
+  if (!userId) {
     return NextResponse.json({ error: "Missing qr param" }, { status: 400 });
   }
 
-  const member = await db.member.findUnique({
-    where: { id: memberId },
-    select: { id: true, name: true, status: true },
+  const venueId = process.env.POS_VENUE_ID!;
+
+  const membership = await db.membership.findUnique({
+    where: { userId_venueId: { userId, venueId } },
+    include: { user: { select: { name: true } } },
   });
 
-  if (!member) {
+  if (!membership) {
     return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
 
-  const balanceCents = await getBalance(memberId);
+  const balanceCents = await getBalance(membership.id);
 
   return NextResponse.json({
-    memberId: member.id,
-    name: member.name,
-    status: member.status,
+    userId,
+    membershipId: membership.id,
+    name: membership.user.name,
+    status: membership.status,
     balanceCents,
     balancePesos: balanceCents / 100,
   });

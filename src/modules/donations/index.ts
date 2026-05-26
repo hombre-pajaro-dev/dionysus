@@ -1,13 +1,13 @@
 import Stripe from "stripe";
 import { db } from "@/lib/db";
-import { credit } from "@/modules/balance";
 import { TransactionType } from "@prisma/client";
 
 // Payment provider abstraction — add MercadoPago adapter here in the future
 export type PaymentProvider = "stripe";
 
 export type InitiatePaymentParams = {
-  memberId: string;
+  userId: string;
+  membershipId: string;
   eventId?: string;
   amountCents: number;
   method: "card" | "oxxo";
@@ -25,18 +25,19 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 export async function initiatePayment(params: InitiatePaymentParams): Promise<PaymentResult> {
-  const { memberId, eventId, amountCents, method } = params;
+  const { userId, membershipId, eventId, amountCents, method } = params;
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountCents,
     currency: "mxn",
     payment_method_types: method === "oxxo" ? ["oxxo"] : ["card"],
-    metadata: { memberId, eventId: eventId ?? "" },
+    metadata: { userId, membershipId, eventId: eventId ?? "" },
   });
 
   const payment = await db.payment.create({
     data: {
-      memberId,
+      userId,
+      membershipId,
       eventId,
       amountCents,
       provider: "stripe",
@@ -66,11 +67,10 @@ export async function confirmPayment(stripePaymentIntentId: string) {
     data: { status: "CONFIRMED", confirmedAt: new Date() },
   });
 
-  // Credit balance and grant event access atomically
   await db.$transaction(async (tx) => {
     await tx.transaction.create({
       data: {
-        memberId: payment.memberId,
+        membershipId: payment.membershipId,
         type: TransactionType.DONATION,
         amountCents: payment.amountCents,
         concept: payment.eventId ? `Donativo evento` : "Recarga de tokens",
@@ -80,8 +80,8 @@ export async function confirmPayment(stripePaymentIntentId: string) {
 
     if (payment.eventId) {
       await tx.eventAccess.upsert({
-        where: { memberId_eventId: { memberId: payment.memberId, eventId: payment.eventId } },
-        create: { memberId: payment.memberId, eventId: payment.eventId, paymentId: payment.id },
+        where: { membershipId_eventId: { membershipId: payment.membershipId, eventId: payment.eventId } },
+        create: { membershipId: payment.membershipId, eventId: payment.eventId, paymentId: payment.id },
         update: {},
       });
     }

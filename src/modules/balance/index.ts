@@ -2,15 +2,15 @@ import { db } from "@/lib/db";
 import { TransactionType } from "@prisma/client";
 
 export type BalanceOperation = {
-  memberId: string;
+  membershipId: string;
   amountCents: number;
   concept: string;
   externalReference?: string;
 };
 
-export async function getBalance(memberId: string): Promise<number> {
+export async function getBalance(membershipId: string): Promise<number> {
   const result = await db.transaction.aggregate({
-    where: { memberId },
+    where: { membershipId },
     _sum: { amountCents: true },
   });
   return result._sum.amountCents ?? 0;
@@ -19,7 +19,7 @@ export async function getBalance(memberId: string): Promise<number> {
 export async function credit(op: BalanceOperation & { type: TransactionType }) {
   return db.transaction.create({
     data: {
-      memberId: op.memberId,
+      membershipId: op.membershipId,
       type: op.type,
       amountCents: Math.abs(op.amountCents),
       concept: op.concept,
@@ -29,13 +29,13 @@ export async function credit(op: BalanceOperation & { type: TransactionType }) {
 }
 
 export async function debit(op: BalanceOperation) {
-  const current = await getBalance(op.memberId);
+  const current = await getBalance(op.membershipId);
   if (current < op.amountCents) {
     throw new Error("INSUFFICIENT_BALANCE");
   }
   return db.transaction.create({
     data: {
-      memberId: op.memberId,
+      membershipId: op.membershipId,
       type: TransactionType.POS_DEBIT,
       amountCents: -Math.abs(op.amountCents),
       concept: op.concept,
@@ -50,7 +50,7 @@ export async function reverse(originalTransactionId: string, concept: string) {
   });
   return db.transaction.create({
     data: {
-      memberId: original.memberId,
+      membershipId: original.membershipId,
       type: TransactionType.REVERSAL,
       amountCents: -original.amountCents,
       concept,
@@ -59,9 +59,9 @@ export async function reverse(originalTransactionId: string, concept: string) {
   });
 }
 
-export async function getTransactionHistory(memberId: string) {
+export async function getTransactionHistory(membershipId: string) {
   return db.transaction.findMany({
-    where: { memberId },
+    where: { membershipId },
     orderBy: { createdAt: "desc" },
   });
 }

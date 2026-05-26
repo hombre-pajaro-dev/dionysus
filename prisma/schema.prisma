@@ -10,30 +10,34 @@ datasource db {
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-enum MemberStatus {
-  PENDING   // Solicitud enviada, esperando aprobación
-  ACTIVE    // Miembro aprobado
+enum MembershipStatus {
+  PENDING   // Solicitud enviada, esperando aprobación (solo venues privados)
+  ACTIVE    // Membresía activa
   SUSPENDED // Dado de baja por organizador
 }
 
 enum RoleType {
-  ADMIN           // Admin global de la plataforma
-  ORGANIZER       // Gestiona venue, eventos y aprobaciones
-  DOOR_OPERATOR   // Verifica acceso en la puerta + puede aprobar miembros en vivo
-  TOKEN_CASHIER   // Agrega tokens via efectivo
-  POS_OPERATOR    // Opera el POS para canjear tokens
+  ADMIN         // Admin global de la plataforma
+  ORGANIZER     // Gestiona venue, eventos y aprobaciones de membresía
+  DOOR_OPERATOR // Verifica acceso en la puerta + puede aprobar membresías en vivo
+  TOKEN_CASHIER // Agrega tokens via efectivo
 }
 
 enum TransactionType {
-  DONATION    // Donativo digital (Stripe)
-  TOPUP       // Carga manual por Cajero de Tokens
-  POS_DEBIT   // Descuento por compra en POS
-  REVERSAL    // Reversión de una transacción anterior
+  DONATION  // Donativo digital (Stripe)
+  TOPUP     // Carga manual por Cajero de Tokens
+  POS_DEBIT // Descuento por compra en POS (sistema externo via API)
+  REVERSAL  // Reversión de una transacción anterior
 }
 
 enum EventVisibility {
-  MEMBERS_ONLY // Solo miembros autenticados
-  PUBLIC       // Visible sin autenticación
+  MEMBERS_ONLY // Solo visible para miembros activos del venue
+  PUBLIC       // Visible sin autenticación; participar igual requiere membresía
+}
+
+enum VenueVisibility {
+  PUBLIC  // Membresía auto-activa en primera compra
+  PRIVATE // Solo por liga de invitación; requiere aprobación manual
 }
 
 enum PaymentStatus {
@@ -43,47 +47,69 @@ enum PaymentStatus {
   REFUNDED
 }
 
-// ─── Venue ───────────────────────────────────────────────────────────────────
+// ─── User ─────────────────────────────────────────────────────────────────────
+// Identidad global en la plataforma. Un usuario puede pertenecer a múltiples venues.
 
-model Venue {
+model User {
   id          String   @id @default(cuid())
+  phone       String   @unique // Identificador primario — número WhatsApp
   name        String
-  description String?
-  manifesto   String?  // Manifiesto de esta comunidad/venue
-  slug        String   @unique
+  city        String?
+  artPractice String?  // Qué arte practica (global; alimentará ArtistProfile futuro)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  events   Event[]
-  members  Member[]
-  roles    MemberRole[]
+  memberships    Membership[] @relation("UserMemberships")
+  referredOthers Membership[] @relation("MembershipReferral")
+  roles          UserRole[]
+  inviteLinks    InviteLink[]
+  otpCodes       OtpCode[]
+  payments       Payment[]
 }
 
-// ─── Member ──────────────────────────────────────────────────────────────────
+// ─── Venue ────────────────────────────────────────────────────────────────────
+// Espacio físico y comunidad. Tiene sus propios miembros, eventos y tokens.
 
-model Member {
-  id                   String       @id @default(cuid())
-  phone                String       @unique // Identificador primario — número WhatsApp
-  name                 String
-  city                 String?
-  artPractice          String?      // Qué arte practica
-  howHeard             String?      // Cómo se enteró de la comunidad
-  whyJoin              String?      // Por qué quiere ser parte
-  status               MemberStatus @default(PENDING)
-  manifestoAcceptedAt  DateTime?
-  referrerId           String?      // ID del miembro que lo invitó
-  venueId              String       // Venue al que pertenece en Fase 1
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+model Venue {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  manifesto   String?         // Valores y compromisos de esta comunidad
+  slug        String          @unique
+  visibility  VenueVisibility @default(PRIVATE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
-  referrer     Member?      @relation("Referrals", fields: [referrerId], references: [id])
-  referrals    Member[]     @relation("Referrals")
-  venue        Venue        @relation(fields: [venueId], references: [id])
-  roles        MemberRole[]
-  inviteLinks  InviteLink[]
+  events      Event[]
+  memberships Membership[]
+  roles       UserRole[]
+  inviteLinks InviteLink[]
+}
+
+// ─── Membership ───────────────────────────────────────────────────────────────
+// Relación entre Usuario y Venue. El Balance de tokens vive aquí — no en User.
+
+model Membership {
+  id                  String           @id @default(cuid())
+  userId              String
+  venueId             String
+  status              MembershipStatus @default(PENDING)
+  howHeard            String?          // Cómo se enteró de este venue específico
+  whyJoin             String?          // Por qué quiere ser parte de este venue
+  manifestoAcceptedAt DateTime?        // Aceptación del manifiesto de este venue
+  referrerId          String?          // userId del miembro que invitó a este venue
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user         User            @relation("UserMemberships", fields: [userId], references: [id])
+  venue        Venue           @relation(fields: [venueId], references: [id])
+  referrer     User?           @relation("MembershipReferral", fields: [referrerId], references: [id])
   transactions Transaction[]
   accesses     EventAccess[]
-  otpCodes     OtpCode[]
+  linkUses     InviteLinkUse[]
+  payments     Payment[]
+
+  @@unique([userId, venueId])
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -96,38 +122,54 @@ model OtpCode {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
-  member    Member?   @relation(fields: [phone], references: [phone])
+  user User? @relation(fields: [phone], references: [phone])
 
   @@index([phone])
 }
 
 // ─── Invite Links ─────────────────────────────────────────────────────────────
+// Scoped a un venue. maxUses: null = ilimitado, 1 = uso único (default El Nido).
 
 model InviteLink {
-  id              String    @id @default(cuid())
-  token           String    @unique @default(cuid())
-  generatedById   String
-  usedByMemberId  String?
-  usedAt          DateTime?
-  createdAt       DateTime  @default(now())
+  id            String   @id @default(cuid())
+  token         String   @unique @default(cuid())
+  venueId       String
+  generatedById String   // userId
+  maxUses       Int?     // null = ilimitado
+  createdAt     DateTime @default(now())
 
-  generatedBy Member  @relation(fields: [generatedById], references: [id])
+  venue       Venue           @relation(fields: [venueId], references: [id])
+  generatedBy User            @relation(fields: [generatedById], references: [id])
+  uses        InviteLinkUse[]
+}
+
+model InviteLinkUse {
+  id           String   @id @default(cuid())
+  inviteLinkId String
+  membershipId String
+  usedAt       DateTime @default(now())
+
+  inviteLink InviteLink @relation(fields: [inviteLinkId], references: [id])
+  membership Membership @relation(fields: [membershipId], references: [id])
+
+  @@unique([inviteLinkId, membershipId])
 }
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
+// Control de acceso. Ortogonal a Membresía y a ArtistProfile (futuro).
 
-model MemberRole {
+model UserRole {
   id           String   @id @default(cuid())
-  memberId     String
+  userId       String
   role         RoleType
-  venueId      String?  // null = rol global (ADMIN)
+  venueId      String?  // null = rol global (solo ADMIN)
   assignedById String?
   assignedAt   DateTime @default(now())
 
-  member  Member @relation(fields: [memberId], references: [id])
-  venue   Venue? @relation(fields: [venueId], references: [id])
+  user  User   @relation(fields: [userId], references: [id])
+  venue Venue? @relation(fields: [venueId], references: [id])
 
-  @@unique([memberId, role, venueId])
+  @@unique([userId, role, venueId])
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -141,7 +183,7 @@ model Event {
   durationMinutes Int             @default(180)
   minimumDonation Int             // En centavos MXN
   visibility      EventVisibility @default(MEMBERS_ONLY)
-  createdById     String
+  createdById     String          // userId
   cancelledAt     DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -154,23 +196,24 @@ model Event {
 // ─── Event Access ─────────────────────────────────────────────────────────────
 
 model EventAccess {
-  id         String   @id @default(cuid())
-  memberId   String
-  eventId    String
-  paymentId  String?  // null si fue otorgado manualmente por cajero
-  grantedAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  membershipId String
+  eventId      String
+  paymentId    String?  // null si fue otorgado manualmente por Cajero de Tokens
+  grantedAt    DateTime @default(now())
 
-  member  Member  @relation(fields: [memberId], references: [id])
-  event   Event   @relation(fields: [eventId], references: [id])
+  membership Membership @relation(fields: [membershipId], references: [id])
+  event      Event      @relation(fields: [eventId], references: [id])
 
-  @@unique([memberId, eventId])
+  @@unique([membershipId, eventId])
 }
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 model Payment {
   id                String        @id @default(cuid())
-  memberId          String
+  userId            String
+  membershipId      String        // qué balance recibe el crédito
   eventId           String?
   amountCents       Int           // Monto en centavos MXN
   provider          String        // "stripe" | "mercadopago" | etc.
@@ -181,14 +224,18 @@ model Payment {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  event Event? @relation(fields: [eventId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  membership Membership @relation(fields: [membershipId], references: [id])
+  event      Event?     @relation(fields: [eventId], references: [id])
 }
 
 // ─── Balance / Transactions ───────────────────────────────────────────────────
+// Ledger inmutable. Balance = SUM(amountCents) WHERE membershipId = X.
+// Tokens son venue-scoped via Membresía — no globales.
 
 model Transaction {
   id                String          @id @default(cuid())
-  memberId          String
+  membershipId      String          // venue-scoped via Membership
   type              TransactionType
   amountCents       Int             // Positivo = crédito, negativo = débito
   concept           String          // Descripción legible
@@ -196,7 +243,7 @@ model Transaction {
   reversalOfId      String?         // Para reversiones, ID de la transacción original
   createdAt         DateTime        @default(now())
 
-  member Member @relation(fields: [memberId], references: [id])
+  membership Membership @relation(fields: [membershipId], references: [id])
 
-  @@index([memberId, createdAt])
+  @@index([membershipId, createdAt])
 }

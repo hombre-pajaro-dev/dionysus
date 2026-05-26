@@ -30,21 +30,21 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
   return true;
 }
 
-export async function createSession(memberId: string): Promise<string> {
+export async function createSession(userId: string): Promise<string> {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + SESSION_TTL_DAYS);
 
-  return new SignJWT({ sub: memberId })
+  return new SignJWT({ sub: userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(expiresAt)
     .sign(secret);
 }
 
-export async function verifySession(token: string): Promise<{ memberId: string } | null> {
+export async function verifySession(token: string): Promise<{ userId: string } | null> {
   try {
     const { payload } = await jwtVerify(token, secret);
-    return { memberId: payload.sub! };
+    return { userId: payload.sub! };
   } catch {
     return null;
   }
