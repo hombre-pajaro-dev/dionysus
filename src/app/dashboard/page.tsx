@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-type BalanceData = {
+type Membership = {
+  id: string;
+  status: string;
   balanceCents: number;
-  membership: { id: string; status: string; venueId: string };
+  venue: { id: string; name: string; slug: string };
 };
 
 type Event = {
@@ -19,30 +21,27 @@ type Event = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [balance, setBalance] = useState<BalanceData | null>(null);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [balRes, evRes] = await Promise.all([
-        fetch("/api/balance"),
+      const [memRes, evRes] = await Promise.all([
+        fetch("/api/memberships"),
         fetch("/api/events"),
       ]);
-
-      if (balRes.status === 401) {
-        router.push("/login");
-        return;
-      }
-
-      if (balRes.ok) setBalance(await balRes.json());
+      if (memRes.status === 401) { router.push("/login"); return; }
+      if (memRes.ok) setMemberships(await memRes.json());
       if (evRes.ok) setEvents(await evRes.json());
       setLoading(false);
     }
     load();
   }, [router]);
 
-  const balanceMXN = balance ? (balance.balanceCents / 100).toFixed(2) : "0.00";
+  // Primary membership — first ACTIVE one, or first overall
+  const primary = memberships.find((m) => m.status === "ACTIVE") ?? memberships[0];
+  const balanceMXN = primary ? (primary.balanceCents / 100).toFixed(2) : "0.00";
 
   if (loading) {
     return (
@@ -77,7 +76,9 @@ export default function DashboardPage() {
       <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
         {/* Balance card */}
         <div className="card ink" style={{ padding: 20 }}>
-          <div className="kicker" style={{ color: "var(--paper)", opacity: 0.6 }}>Balance</div>
+          <div className="kicker" style={{ color: "var(--paper)", opacity: 0.6 }}>
+            {primary?.venue.name ?? "Balance"}
+          </div>
           <div
             style={{
               fontFamily: "var(--display)",
@@ -91,12 +92,26 @@ export default function DashboardPage() {
             ${balanceMXN}
           </div>
           <div className="mono body-sm" style={{ marginTop: 8, opacity: 0.6 }}>MXN · Tokens disponibles</div>
-          {balance?.membership.status === "PENDING" && (
+          {primary?.status === "PENDING" && (
             <div className="mono body-sm" style={{ marginTop: 8, color: "var(--accent)" }}>
               MEMBRESÍA PENDIENTE DE APROBACIÓN
             </div>
           )}
         </div>
+
+        {/* Multi-venue balances if >1 */}
+        {memberships.length > 1 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: -2 }}>
+            {memberships.map((m) => (
+              <div key={m.id} className="card" style={{ padding: "10px 14px", border: "2px solid var(--line)", marginBottom: -2 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span className="body-sm">{m.venue.name}</span>
+                  <span className="mono body-sm">${(m.balanceCents / 100).toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Quick links */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -118,10 +133,10 @@ export default function DashboardPage() {
         {events.length > 0 && (
           <div>
             <div className="kicker" style={{ marginBottom: 10 }}>Eventos próximos</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: -2 }}>
-              {events.slice(0, 5).map((ev) => (
-                <Link key={ev.id} href={`/events/${ev.id}`} style={{ textDecoration: "none" }}>
-                  <div className="card" style={{ padding: "12px 16px", border: "2px solid var(--line)", marginBottom: -2 }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {events.slice(0, 5).map((ev, i) => (
+                <Link key={ev.id} href={`/events/${ev.id}`} style={{ textDecoration: "none", marginBottom: i < Math.min(events.length, 5) - 1 ? -2 : 0 }}>
+                  <div className="card" style={{ padding: "12px 16px", border: "2px solid var(--line)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div>
                         <div className="body-sm" style={{ fontWeight: 600 }}>{ev.name}</div>

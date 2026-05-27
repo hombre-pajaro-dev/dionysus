@@ -43,9 +43,14 @@ export default function EventDetailPage() {
     setDonationError("");
     setDonating(true);
     try {
-      const balRes = await fetch("/api/balance");
-      if (balRes.status === 401) { router.push("/login"); return; }
-      const { membership } = await balRes.json();
+      const memRes = await fetch("/api/memberships");
+      if (memRes.status === 401) { router.push("/login"); return; }
+      const memberships: { id: string; venue: { id: string }; status: string }[] = await memRes.json();
+      const membership = memberships.find((m) => m.venue.id === event!.venue.id && m.status === "ACTIVE");
+      if (!membership) {
+        setDonationError("No tienes membresía activa en este venue");
+        return;
+      }
 
       const res = await fetch("/api/donations", {
         method: "POST",
