@@ -47,6 +47,13 @@ After(async function () {
   await cleanTestData()
 })
 
+Before({ tags: '@requires-stripe' }, function () {
+  const key = process.env.STRIPE_SECRET_KEY ?? ''
+  if (!key.startsWith('sk_test_') || key === 'sk_test_placeholder') {
+    return 'pending'
+  }
+})
+
 AfterAll(async function () {
   await db.$disconnect()
 })
