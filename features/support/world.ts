@@ -1,9 +1,19 @@
 import { World, setWorldConstructor, IWorldOptions } from '@cucumber/cucumber'
 
 export class DionysusWorld extends World {
+  // auth
   phone: string = ''
-  response: Response | null = null
   otp: string | null = null
+  sessionToken: string = ''
+
+  // shared HTTP
+  response: Response | null = null
+
+  // membership
+  venueId: string = ''
+  organizerUserId: string = ''
+  inviteToken: string = ''
+  membershipId: string = ''
 
   constructor(options: IWorldOptions) {
     super(options)
