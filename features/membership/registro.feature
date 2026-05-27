@@ -55,3 +55,19 @@ Característica: Membresía — Registro y Aprobación via Liga de Invitación
     Cuando el organizador suspende esa membresía
     Entonces recibe status 200
     Y la membresía queda en estado "SUSPENDED"
+
+  Escenario: GET de liga válida retorna info del venue
+    Dado una liga de invitación válida generada por el organizador
+    Cuando se consulta la info de esa liga de invitación
+    Entonces recibe status 200
+    Y la respuesta incluye el nombre del venue
+
+  Escenario: GET de liga inválida retorna 404
+    Cuando se consulta la info de la liga "token-get-invalido-xyz"
+    Entonces recibe status 404
+
+  Escenario: GET de liga agotada indica exhausted true
+    Dado una liga de invitación ya agotada
+    Cuando se consulta la info de esa liga de invitación
+    Entonces recibe status 200
+    Y la respuesta indica que la liga está agotada

@@ -8,9 +8,9 @@ import { db } from '@/lib/db'
 import { createSession } from '@/modules/auth'
 import { generateInviteLink } from '@/modules/membership'
 
-async function getInviteRoute(token: string) {
+async function getInviteRoute() {
   const mod = await import('@/app/api/invite/[token]/route')
-  return mod.POST
+  return { GET: mod.GET, POST: mod.POST }
 }
 async function getMembershipInviteRoute() {
   const mod = await import('@/app/api/membership/invite/route')
@@ -106,7 +106,7 @@ When('el organizador genera una liga de invitación para el venue', async functi
 
 When('una persona con teléfono {string} se registra via esa liga', async function (this: DionysusWorld, phone: string) {
   this.phone = phone
-  const POST = await getInviteRoute(this.inviteToken)
+  const { POST } = await getInviteRoute()
   this.response = await POST(
     new Request(`http://localhost/api/invite/${this.inviteToken}`, {
       method: 'POST',
@@ -118,7 +118,7 @@ When('una persona con teléfono {string} se registra via esa liga', async functi
 })
 
 When('ese usuario se registra via esa liga', async function (this: DionysusWorld) {
-  const POST = await getInviteRoute(this.inviteToken)
+  const { POST } = await getInviteRoute()
   this.response = await POST(
     new Request(`http://localhost/api/invite/${this.inviteToken}`, {
       method: 'POST',
@@ -131,7 +131,7 @@ When('ese usuario se registra via esa liga', async function (this: DionysusWorld
 
 When('una persona con teléfono {string} intenta registrarse via esa liga', async function (this: DionysusWorld, phone: string) {
   this.phone = phone
-  const POST = await getInviteRoute(this.inviteToken)
+  const { POST } = await getInviteRoute()
   this.response = await POST(
     new Request(`http://localhost/api/invite/${this.inviteToken}`, {
       method: 'POST',
@@ -144,7 +144,7 @@ When('una persona con teléfono {string} intenta registrarse via esa liga', asyn
 
 When('una persona con teléfono {string} intenta registrarse via liga {string}', async function (this: DionysusWorld, phone: string, token: string) {
   this.phone = phone
-  const POST = await getInviteRoute(token)
+  const { POST } = await getInviteRoute()
   this.response = await POST(
     new Request(`http://localhost/api/invite/${token}`, {
       method: 'POST',
@@ -223,4 +223,30 @@ Then('la respuesta incluye la solicitud de {string}', async function (this: Dion
 Then('la membresía con id almacenado queda en estado {string}', async function (this: DionysusWorld, expectedStatus: string) {
   const membership = await db.membership.findUnique({ where: { id: this.membershipId } })
   assert.equal(membership?.status, expectedStatus)
+})
+
+When('se consulta la info de esa liga de invitación', async function (this: DionysusWorld) {
+  const { GET } = await getInviteRoute()
+  this.response = await GET(
+    new Request(`http://localhost/api/invite/${this.inviteToken}`),
+    { params: Promise.resolve({ token: this.inviteToken }) }
+  )
+})
+
+When('se consulta la info de la liga {string}', async function (this: DionysusWorld, token: string) {
+  const { GET } = await getInviteRoute()
+  this.response = await GET(
+    new Request(`http://localhost/api/invite/${token}`),
+    { params: Promise.resolve({ token }) }
+  )
+})
+
+Then('la respuesta incluye el nombre del venue', async function (this: DionysusWorld) {
+  const data = await this.response!.clone().json()
+  assert.ok(data.venue?.name, `Expected venue.name in response, got: ${JSON.stringify(data)}`)
+})
+
+Then('la respuesta indica que la liga está agotada', async function (this: DionysusWorld) {
+  const data = await this.response!.clone().json()
+  assert.strictEqual(data.exhausted, true, `Expected exhausted=true, got: ${JSON.stringify(data)}`)
 })

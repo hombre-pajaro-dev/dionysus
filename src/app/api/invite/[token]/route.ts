@@ -4,6 +4,28 @@ import { register } from "@/modules/membership";
 import { sendPendingApprovalAlert } from "@/modules/notifications";
 import { db } from "@/lib/db";
 
+// Public — returns venue info from invite token (no auth needed)
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const { token } = await params;
+  const invite = await db.inviteLink.findUnique({
+    where: { token },
+    include: { venue: { select: { id: true, name: true, description: true, manifesto: true, visibility: true } } },
+  });
+  if (!invite) return NextResponse.json({ error: "Liga no encontrada" }, { status: 404 });
+
+  // Check if exhausted
+  const useCount = await db.inviteLinkUse.count({ where: { inviteLinkId: invite.id } });
+  const exhausted = invite.maxUses !== null && useCount >= invite.maxUses;
+
+  return NextResponse.json({
+    venue: invite.venue,
+    exhausted,
+  });
+}
+
 const schema = z.object({
   phone: z.string().min(7),
   name: z.string().min(1),
