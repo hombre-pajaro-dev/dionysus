@@ -20,12 +20,13 @@ export type PaymentResult = {
   status: "pending" | "confirmed";
 };
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-02-24.acacia",
-});
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-02-24.acacia" });
+}
 
 export async function initiatePayment(params: InitiatePaymentParams): Promise<PaymentResult> {
   const { userId, membershipId, eventId, amountCents, method } = params;
+  const stripe = getStripe();
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountCents,
