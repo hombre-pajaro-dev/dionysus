@@ -13,11 +13,12 @@ async function getEventsRoute() {
 }
 async function getEventByIdRoute() {
   const mod = await import('@/app/api/events/[id]/route')
-  return { PATCH: mod.PATCH }
+  return { GET: mod.GET, PATCH: mod.PATCH }
 }
 
 declare module '../support/world' {
   interface DionysusWorld {
+    eventId: string
     venueId2: string
     eventId2: string
     memberSessionToken: string
@@ -182,4 +183,19 @@ Then('la respuesta NO incluye el evento {string}', async function (this: Dionysu
 Then('el evento tiene fecha de cancelación registrada', async function (this: DionysusWorld) {
   const event = await db.event.findUnique({ where: { id: this.eventId } })
   assert.ok(event?.cancelledAt, 'cancelledAt no está registrado')
+})
+
+When('consulta el detalle de ese evento sin autenticación', async function (this: DionysusWorld) {
+  const { GET } = await getEventByIdRoute()
+  // Use eventId or eventId2 — prefer eventId2 if set (private venue scenarios)
+  const id = this.eventId2 || this.eventId
+  this.response = await GET(
+    new Request(`http://localhost/api/events/${id}`),
+    { params: Promise.resolve({ id }) }
+  )
+})
+
+Then('la respuesta contiene el nombre del evento {string}', async function (this: DionysusWorld, name: string) {
+  const data = await this.response!.clone().json()
+  assert.equal(data.name, name, `Expected name="${name}", got: ${data.name}`)
 })

@@ -3,6 +3,26 @@ import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/auth-request";
 import { db } from "@/lib/db";
 
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const event = await db.event.findUnique({
+    where: { id },
+    include: { venue: { select: { id: true, name: true, slug: true, visibility: true } } },
+  });
+  if (!event) return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
+
+  // MEMBERS_ONLY events require authentication
+  if (event.visibility === "MEMBERS_ONLY") {
+    const session = await getSessionFromRequest(req);
+    if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  return NextResponse.json(event);
+}
+
 const patchSchema = z.object({
   cancelled: z.boolean().optional(),
   name: z.string().min(1).optional(),

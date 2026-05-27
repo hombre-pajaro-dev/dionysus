@@ -39,3 +39,14 @@ Característica: Gestión de Eventos
     Cuando el organizador cancela ese evento
     Entonces recibe status 200
     Y el evento tiene fecha de cancelación registrada
+
+  Escenario: Cualquier persona obtiene detalle de evento público
+    Dado un evento público "Detalle Test" en el venue público
+    Cuando consulta el detalle de ese evento sin autenticación
+    Entonces recibe status 200
+    Y la respuesta contiene el nombre del evento "Detalle Test"
+
+  Escenario: Evento privado requiere sesión para ver detalle
+    Dado un evento con visibilidad MEMBERS_ONLY "Detalle Privado" en el venue privado
+    Cuando consulta el detalle de ese evento sin autenticación
+    Entonces recibe status 401
