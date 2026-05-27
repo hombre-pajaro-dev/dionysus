@@ -63,7 +63,6 @@ model User {
   referredOthers Membership[] @relation("MembershipReferral")
   roles          UserRole[]
   inviteLinks    InviteLink[]
-  otpCodes       OtpCode[]
   payments       Payment[]
 }
 
@@ -114,6 +113,7 @@ model Membership {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+// phone is NOT a FK — OTP is requested before User may exist
 model OtpCode {
   id        String    @id @default(cuid())
   phone     String
@@ -121,8 +121,6 @@ model OtpCode {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
-
-  user User? @relation(fields: [phone], references: [phone])
 
   @@index([phone])
 }

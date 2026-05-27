@@ -6,6 +6,7 @@
 
 # testing
 /coverage
+cucumber-report.html
 
 # next.js
 /.next/
