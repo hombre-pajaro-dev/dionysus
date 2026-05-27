@@ -15,6 +15,9 @@ export class DionysusWorld extends World {
   inviteToken: string = ''
   membershipId: string = ''
 
+  // current user
+  userId: string = ''
+
   constructor(options: IWorldOptions) {
     super(options)
   }
